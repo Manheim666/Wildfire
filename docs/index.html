@@ -1,3 +1,198 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:0cc790c5771e8158d870fd9d1791a9b08fa4a9af932de2c4d25e0581ceee20ec
-size 9148
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MANHEIM — Wildfire & Weather Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@20..48,100..700,0..1" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- ═══ NAVBAR ═══ -->
+    <nav class="navbar">
+      <div class="nav-inner">
+        <a class="nav-brand" href="#">
+          <span class="brand-icon material-symbols-rounded">local_fire_department</span>
+          <span class="brand-text">MANHEIM</span>
+        </a>
+        <div class="nav-toggle" id="modeToggle">
+          <button class="mode-btn active" id="toggleDaily">
+            <span class="material-symbols-rounded">calendar_month</span> Daily
+          </button>
+          <button class="mode-btn" id="toggleHourly">
+            <span class="material-symbols-rounded">schedule</span> Hourly
+          </button>
+        </div>
+        <div class="nav-meta">
+          <span class="model-pill" id="modelStatus">Loading&hellip;</span>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <!-- ═══ HERO: Current Conditions ═══ -->
+      <section class="hero">
+        <div class="hero-inner">
+          <div class="hero-location">
+            <select id="heroRegionSelect" aria-label="Select region"></select>
+            <div class="hero-city-row">
+              <span class="material-symbols-rounded loc-icon">location_on</span>
+              <h1 id="heroCity">Baku</h1>
+            </div>
+            <p class="hero-subtitle" id="heroSubtitle">Azerbaijan</p>
+          </div>
+
+          <div class="hero-risk-badge" id="heroRiskBadge">
+            <div class="risk-ring" id="riskRing">
+              <svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="52"/><circle class="ring-fg" id="riskArc" cx="60" cy="60" r="52"/></svg>
+              <div class="ring-label">
+                <span class="ring-pct" id="heroRiskPct">0%</span>
+                <span class="ring-tag">Fire Risk</span>
+              </div>
+            </div>
+            <span class="risk-level-text" id="heroRiskLevel">Low</span>
+          </div>
+
+          <div class="hero-conditions">
+            <div class="cond-card">
+              <span class="material-symbols-rounded">thermostat</span>
+              <strong id="heroTemp">--</strong>
+              <small>Temperature</small>
+            </div>
+            <div class="cond-card">
+              <span class="material-symbols-rounded">air</span>
+              <strong id="heroWind">--</strong>
+              <small>Wind</small>
+            </div>
+            <div class="cond-card">
+              <span class="material-symbols-rounded">humidity_percentage</span>
+              <strong id="heroHumidity">--</strong>
+              <small>Humidity</small>
+            </div>
+            <div class="cond-card">
+              <span class="material-symbols-rounded">water_drop</span>
+              <strong id="heroRain">--</strong>
+              <small>Rain</small>
+            </div>
+          </div>
+
+          <div class="hero-summary-box">
+            <p id="heroSummary">Loading forecast data&hellip;</p>
+            <p class="hero-warning" id="heroWarning"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ FORECAST STRIP ═══ -->
+      <section class="strip-section">
+        <div class="strip-header">
+          <h2 id="stripTitle">30-Day Outlook</h2>
+          <select id="regionSelect" aria-label="Region filter"></select>
+        </div>
+        <div class="forecast-strip" id="forecastStrip"></div>
+      </section>
+
+      <!-- ═══ MAP + DETAIL PANEL ═══ -->
+      <section class="map-section">
+        <div class="map-wrap">
+          <div class="map-toolbar">
+            <h3><span class="material-symbols-rounded">map</span> Risk Map</h3>
+            <select id="datePicker" aria-label="Select date"></select>
+          </div>
+          <div id="map"></div>
+        </div>
+        <aside class="detail-panel" id="detailPanel">
+          <div class="dp-head">
+            <select id="panelRegionSelect" aria-label="Select city"></select>
+            <h2 id="panelCity">Baku</h2>
+          </div>
+          <div class="dp-risk-row" id="dpRiskRow">
+            <span class="dp-risk-chip" id="dpRiskChip">Low</span>
+            <strong id="dpRiskPct">0%</strong>
+          </div>
+          <div class="dp-metrics">
+            <div><span class="material-symbols-rounded">thermostat</span><div><small>Temp</small><strong id="dpTemp">--</strong></div></div>
+            <div><span class="material-symbols-rounded">air</span><div><small>Wind</small><strong id="dpWind">--</strong></div></div>
+            <div><span class="material-symbols-rounded">humidity_percentage</span><div><small>Humidity</small><strong id="dpHumidity">--</strong></div></div>
+            <div><span class="material-symbols-rounded">water_drop</span><div><small>Rain</small><strong id="dpRain">--</strong></div></div>
+          </div>
+          <p class="dp-summary" id="dpSummary"></p>
+          <p class="dp-warning" id="dpWarning"></p>
+          <div id="dpTrendChart" class="dp-chart"></div>
+        </aside>
+      </section>
+
+      <!-- ═══ CHARTS ═══ -->
+      <section class="charts-section" id="chartsSection">
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">trending_up</span><h3 id="chartRiskTitle">Risk Trend — 30 Days</h3></div>
+          <div id="mainRiskChart" class="cc-body"></div>
+        </div>
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">cloud</span><h3 id="chartWeatherTitle">Weather Conditions</h3></div>
+          <div id="mainWeatherChart" class="cc-body"></div>
+        </div>
+      </section>
+
+      <!-- ═══ HOURLY CHARTS (hidden by default) ═══ -->
+      <section class="charts-section hourly-charts" id="hourlyChartsSection" style="display:none">
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">local_fire_department</span><h3>Hourly Fire Risk</h3></div>
+          <div id="hourlyRiskChart" class="cc-body"></div>
+        </div>
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">thermostat</span><h3>Temperature</h3></div>
+          <div id="hourlyTempChart" class="cc-body"></div>
+        </div>
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">humidity_percentage</span><h3>Humidity</h3></div>
+          <div id="hourlyHumidityChart" class="cc-body"></div>
+        </div>
+        <div class="chart-card">
+          <div class="cc-head"><span class="material-symbols-rounded">air</span><h3>Wind Speed</h3></div>
+          <div id="hourlyWindChart" class="cc-body"></div>
+        </div>
+      </section>
+
+      <!-- ═══ TABLE ═══ -->
+      <section class="table-section" id="tableSection">
+        <div class="table-head">
+          <h3><span class="material-symbols-rounded">table_chart</span> <span id="tableTitle">Detailed Forecast</span></h3>
+          <div class="table-filters">
+            <select id="riskFilter"><option value="All">All risk levels</option><option value="Low">Low</option><option value="Moderate">Moderate</option><option value="High">High</option><option value="Extreme">Extreme</option></select>
+            <select id="tableDateFilter"><option value="">All dates</option></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date / Time</th><th>Region</th><th>Risk</th><th>Probability</th><th>Temp</th><th>Wind</th><th>Humidity</th></tr></thead>
+            <tbody id="forecastTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="material-symbols-rounded">local_fire_department</span>
+          <strong>MANHEIM Wildfire Intelligence</strong>
+          <p>Climate and environmental risk monitoring for Azerbaijan.</p>
+        </div>
+        <div class="footer-meta">
+          <span>NASA FIRMS &middot; Open-Meteo &middot; Open-Elevation</span>
+          <span>ADA University &middot; 2026</span>
+        </div>
+      </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
