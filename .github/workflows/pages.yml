@@ -38,8 +38,8 @@ jobs:
           git lfs install
 
           git lfs pull \
-            --include="dashboard/data/**,docs/**" \
-            --exclude="data/raw/**,data/processed/**,models/**,notebooks/**,*.zip,*.tif,*.h5,*.keras,*.pt,*.pth,*.pkl,*.joblib"
+            --include="dashboard/data/**,docs/**,data/processed/**,notebooks/**" \
+            --exclude="data/raw/**,models/**,*.zip,*.tif,*.h5,*.keras,*.pt,*.pth"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -53,6 +53,13 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
+
+          python -m pip install jupyter nbconvert ipykernel
+
+      - name: Register Python Jupyter kernel
+        run: |
+          python -m ipykernel install --user --name python3 --display-name "Python 3"
+          jupyter kernelspec list
 
       - name: Run wildfire pipeline
         env:
