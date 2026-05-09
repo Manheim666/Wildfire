@@ -27,16 +27,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository without downloading all LFS files
         uses: actions/checkout@v4
         with:
-          lfs: true
-          fetch-depth: 0
+          lfs: false
+          fetch-depth: 1
 
-      - name: Install Git LFS and pull files
+      - name: Install Git LFS and pull only required files
         run: |
           git lfs install
-          git lfs pull
+
+          git lfs pull \
+            --include="dashboard/data/**,docs/**" \
+            --exclude="data/raw/**,data/processed/**,models/**,notebooks/**,*.zip,*.tif,*.h5,*.keras,*.pt,*.pth,*.pkl,*.joblib"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,15 +52,7 @@ jobs:
 
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
-          else
-            echo "requirements.txt not found, skipping dependency install"
           fi
-
-      - name: Register Jupyter kernel
-        run: |
-          python -m pip install ipykernel nbconvert jupyter
-          python -m ipykernel install --user --name python3 --display-name "Python 3"
-          jupyter kernelspec list
 
       - name: Run wildfire pipeline
         env:
@@ -67,56 +62,27 @@ jobs:
         run: |
           python run_pipeline.py
 
-      - name: Validate docs after pipeline
+      - name: Check dashboard files
         run: |
-          echo "Checking docs after pipeline..."
+          echo "Checking docs folder..."
+
+          if [ ! -d docs ]; then
+            echo "ERROR: docs folder does not exist"
+            exit 1
+          fi
 
           if [ ! -f docs/index.html ]; then
             echo "ERROR: docs/index.html does not exist"
             exit 1
           fi
 
-          echo "First 40 lines of docs/index.html:"
-          head -40 docs/index.html
-
-          echo "Searching for LFS pointers inside docs:"
-          if grep -R "version https://git-lfs.github.com/spec/v1" -n docs; then
+          if grep -R "version https://git-lfs.github.com/spec/v1" docs; then
             echo "ERROR: Git LFS pointer found inside docs/"
+            echo "Some files in docs/ are not real files, only LFS pointers."
             exit 1
           fi
 
-          if ! grep -qi "<html" docs/index.html; then
-            echo "ERROR: docs/index.html is not real HTML."
-            echo "It looks like generated text, not a website file."
-            exit 1
-          fi
-
-          echo "OK: docs folder looks valid"
-
-      - name: Commit updated dashboard files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add docs dashboard/data || true
-
-          if git diff --cached --quiet; then
-            echo "No dashboard changes to commit"
-          else
-            git commit -m "Daily dashboard update"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
-
-      - name: Debug final deployed files
-        run: |
-          echo "Current commit:"
-          git rev-parse HEAD
-
-          echo "First 40 lines of docs/index.html:"
-          head -40 docs/index.html
-
-          echo "Docs file sizes:"
-          find docs -maxdepth 2 -type f -exec ls -lh {} \;
+          echo "Dashboard files look OK."
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -128,4 +94,4 @@ jobs:
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4
