@@ -48,9 +48,8 @@ data/
 outputs/
 reports/metrics/
 dashboard/data/
-docs/data/
 
 # Generated file types
 *.parquet
 *.csv
-*.json
+# Note: *.json NOT ignored globally — docs/data/*.json needed for dashboard Pages deployment
