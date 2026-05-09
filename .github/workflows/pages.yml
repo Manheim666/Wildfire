@@ -1,8 +1,6 @@
-name: Daily update and deploy dashboard
+name: Deploy dashboard to GitHub Pages
 
 on:
-  schedule:
-    - cron: "0 4 * * *"
   workflow_dispatch:
   push:
     branches:
@@ -10,16 +8,16 @@ on:
       - master
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
 concurrency:
-  group: daily-dashboard-update
+  group: pages-deploy
   cancel-in-progress: false
 
 jobs:
-  update-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     environment:
@@ -27,47 +25,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout repository without downloading all LFS files
+      - name: Checkout repository without LFS
         uses: actions/checkout@v4
         with:
           lfs: false
           fetch-depth: 1
-
-      - name: Install Git LFS and pull only required files
-        run: |
-          git lfs install
-
-          git lfs pull \
-            --include="dashboard/data/**,docs/**,data/processed/**,notebooks/**" \
-            --exclude="data/raw/**,models/**,*.zip,*.tif,*.h5,*.keras,*.pt,*.pth"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-
-          python -m pip install jupyter nbconvert ipykernel
-
-      - name: Register Python Jupyter kernel
-        run: |
-          python -m ipykernel install --user --name python3 --display-name "Python 3"
-          jupyter kernelspec list
-
-      - name: Run wildfire pipeline
-        env:
-          CI: true
-          GITHUB_ACTIONS: true
-          SKIP_GEE_AUTH: true
-        run: |
-          python run_pipeline.py
 
       - name: Check dashboard files
         run: |
@@ -85,7 +47,8 @@ jobs:
 
           if grep -R "version https://git-lfs.github.com/spec/v1" docs; then
             echo "ERROR: Git LFS pointer found inside docs/"
-            echo "Some files in docs/ are not real files, only LFS pointers."
+            echo "Your docs folder contains files stored in LFS."
+            echo "Because your LFS budget is exceeded, GitHub Actions cannot download them."
             exit 1
           fi
 
