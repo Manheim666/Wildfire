@@ -100,9 +100,9 @@ def fetch_weather(city: str, lat: float, lon: float,
         "forecast_days": forecast_days,
         "timezone": "auto",
     }
-    for attempt in range(4):
+    for attempt in range(5):
         try:
-            r = requests.get(url, params=params, timeout=30)
+            r = requests.get(url, params=params, timeout=(10, 60))
             r.raise_for_status()
             h = r.json()["hourly"]
             df = pd.DataFrame({
@@ -120,7 +120,7 @@ def fetch_weather(city: str, lat: float, lon: float,
             df["City"] = city
             return df
         except Exception as e:
-            if attempt < 3:
+            if attempt < 4:
                 time.sleep(2 ** attempt)
             else:
                 raise RuntimeError(f"Open-Meteo failed for {city}: {e}")
@@ -422,6 +422,7 @@ def main() -> None:
         df_c = fetch_weather(city, lat, lon, past_days=60, forecast_days=16)
         all_hourly.append(df_c)
         print("ok")
+        time.sleep(1)
 
     df_h_all = pd.concat(all_hourly, ignore_index=True)
 
