@@ -6,6 +6,12 @@ on:
     branches:
       - main
       - master
+  workflow_run:
+    workflows: ["Update wildfire forecast"]
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -19,6 +25,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
 
     environment:
       name: github-pages
