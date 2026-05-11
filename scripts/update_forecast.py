@@ -451,6 +451,8 @@ def main() -> None:
             "risk_score":     round(p * 100, 1),
             "predicted_fire": int(p >= threshold_d),
             "temperature":    round(float(row.get("Temperature_C_mean", 0) or 0), 1),
+            "temp_min":       round(float(row.get("Temperature_C_min", 0) or 0), 1),
+            "temp_max":       round(float(row.get("Temperature_C_max", 0) or 0), 1),
             "wind":           round(float(row.get("Wind_Speed_kmh_mean", 0) or 0), 1),
             "humidity":       round(float(row.get("Humidity_percent_mean", 0) or 0), 1),
             "rain":           round(float(row.get("Rain_mm_sum", 0) or 0), 2),

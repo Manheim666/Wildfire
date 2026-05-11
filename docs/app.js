@@ -168,8 +168,10 @@ function renderHero() {
   const row = currentRow();
   if (!row || !row.region) return;
 
-  document.getElementById("heroCity").textContent     = row.region;
-  document.getElementById("heroTemp").textContent     = `${f1(row.temperature || 0)}°C`;
+  document.getElementById("heroCity").textContent = row.region;
+  document.getElementById("heroTemp").textContent = forecastMode === "daily"
+    ? `${f1(row.temp_min ?? row.temperature ?? 0)}–${f1(row.temp_max ?? row.temperature ?? 0)}°C`
+    : `${f1(row.temperature || 0)}°C`;
   document.getElementById("heroWind").textContent     = `${f1(row.wind || 0)} km/h`;
   document.getElementById("heroHumidity").textContent = `${f1(row.humidity || 0)}%`;
 
@@ -215,7 +217,9 @@ function renderPanel() {
   chip.style.background = riskColor(lvl);
   document.getElementById("dpRiskPct").textContent = fmt(row.probability || 0);
   document.getElementById("dpRiskRow").style.background = riskBg(lvl);
-  document.getElementById("dpTemp").textContent     = `${f1(row.temperature || 0)}°C`;
+  document.getElementById("dpTemp").textContent = forecastMode === "daily"
+    ? `${f1(row.temp_min ?? row.temperature ?? 0)}–${f1(row.temp_max ?? row.temperature ?? 0)}°C`
+    : `${f1(row.temperature || 0)}°C`;
   document.getElementById("dpWind").textContent     = `${f1(row.wind || 0)} km/h`;
   document.getElementById("dpHumidity").textContent = `${f1(row.humidity || 0)}%`;
 
@@ -270,7 +274,7 @@ function renderStrip() {
       return `<div class="fc-card${active}" data-date="${row.date}">
         <div class="fc-date">${dt.toLocaleDateString("en",{weekday:"short"})}<br>${dt.toLocaleDateString("en",{month:"short",day:"numeric"})}</div>
         <div class="fc-risk-dot" style="background:${col}">${Math.round(row.probability*100)}</div>
-        <div class="fc-temp">${f1(row.temperature)}°</div>
+        <div class="fc-temp">${f1(row.temp_max ?? row.temperature)}°/${f1(row.temp_min ?? row.temperature)}°</div>
         <div class="fc-wind">${f1(row.wind)} km/h</div>
         <div class="fc-label" style="background:${col}22;color:${col}">${row.risk_level}</div>
       </div>`;
@@ -318,7 +322,8 @@ function renderDailyCharts() {
   }], LAYOUT({yaxis:{ticksuffix:"%",gridcolor:"#eef2f6"}}), PCFG);
 
   Plotly.react("mainWeatherChart", [
-    {x:rr.map(d=>d.date), y:rr.map(d=>d.temperature), name:"Temp °C", type:"scatter", mode:"lines+markers", line:{color:"#4a9eda",width:2}, marker:{size:4}},
+    {x:rr.map(d=>d.date), y:rr.map(d=>d.temp_max ?? d.temperature), name:"Max °C", type:"scatter", mode:"lines+markers", line:{color:"#e06730",width:2}, marker:{size:4}},
+    {x:rr.map(d=>d.date), y:rr.map(d=>d.temp_min ?? d.temperature), name:"Min °C", type:"scatter", mode:"lines+markers", line:{color:"#4a9eda",width:2}, marker:{size:4}},
     {x:rr.map(d=>d.date), y:rr.map(d=>d.wind),        name:"Wind km/h", type:"scatter", mode:"lines+markers", line:{color:"#e06730",width:2}, marker:{size:4}},
     {x:rr.map(d=>d.date), y:rr.map(d=>d.humidity),     name:"Humidity %", type:"scatter", mode:"lines", line:{color:"#22a66e",width:1.5,dash:"dot"}, yaxis:"y2"},
   ], LAYOUT({yaxis:{gridcolor:"#eef2f6"}, yaxis2:{overlaying:"y",side:"right",showgrid:false,ticksuffix:"%"}}), PCFG);
@@ -377,7 +382,7 @@ function renderTable() {
         <td>${r.date}</td><td>${r.region}</td>
         <td><span class="risk-chip" style="background:${riskColor(r.risk_level)}">${r.risk_level}</span></td>
         <td>${fmt(r.probability)}</td>
-        <td>${f1(r.temperature)}°C</td><td>${f1(r.wind)} km/h</td><td>${f1(r.humidity)}%</td>
+        <td>${f1(r.temp_max ?? r.temperature)}°/${f1(r.temp_min ?? r.temperature)}°C</td><td>${f1(r.wind)} km/h</td><td>${f1(r.humidity)}%</td>
       </tr>`).join("");
   } else {
     document.getElementById("tableTitle").textContent = "Hourly Forecast Detail";
