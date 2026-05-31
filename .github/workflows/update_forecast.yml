@@ -184,7 +184,7 @@ jobs:
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
           MAX_PUSH=3
           for i in $(seq 1 $MAX_PUSH); do
-            git pull --rebase --ff-only origin "$BRANCH_NAME" && git push origin "$BRANCH_NAME" && exit 0
+            git pull --rebase origin "$BRANCH_NAME" && git push origin "$BRANCH_NAME" && exit 0
             echo "Push attempt $i failed. Retrying in 10s..."
             sleep 10
           done
