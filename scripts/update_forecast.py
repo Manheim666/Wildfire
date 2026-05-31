@@ -385,6 +385,92 @@ def build_hourly_features(df_h: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
+# ── 30-day extension ──────────────────────────────────────────────────────
+# Open-Meteo free API caps at 16 days. For days 17-30 we use same-period
+# seasonal averages computed from the historical window (past_days=92).
+# This runs BEFORE build_daily_features() so that lag/rolling features
+# computed inside that function extend naturally into the padded days.
+
+WEATHER_COLS = [
+    "Temperature_C_mean", "Temperature_C_max", "Temperature_C_min",
+    "Humidity_percent_mean", "Humidity_percent_max", "Humidity_percent_min",
+    "Rain_mm_sum",
+    "Wind_Speed_kmh_mean", "Wind_Speed_kmh_max", "Wind_Speed_kmh_min",
+    "Wind_Dir_deg_mean",
+    "Pressure_hPa_mean",
+    "Solar_Radiation_Wm2_mean",
+    "Soil_Temp_C_mean", "Soil_Temp_C_max",
+    "Soil_Moisture_mean", "Soil_Moisture_max",
+    "temp_range", "temp_night_min", "solar_peak_hour",
+    "hours_temp_above_30", "hours_humidity_below_30", "hours_wind_above_20",
+    "Humidity_percent_diurnal_range",
+]
+
+
+def extend_daily_to_30d(
+    df_daily: pd.DataFrame,
+    today: "date",
+    target_days: int = 30,
+    seasonal_window: int = 7,
+) -> pd.DataFrame:
+    """Pad df_daily so every city has rows for today through today+target_days-1.
+
+    Days already present (API forecast, days 1-16) are kept as-is.
+    Days 17-30 are filled using the mean of historical rows whose day-of-year
+    falls within ±seasonal_window days of the target date (from prior years).
+    """
+    today_ts = pd.Timestamp(today)
+    target_dates = [today_ts + pd.Timedelta(days=d) for d in range(target_days)]
+    history = df_daily[df_daily["Date"] < today_ts].copy()
+
+    new_rows = []
+    for city in df_daily["City"].unique():
+        city_df = df_daily[df_daily["City"] == city]
+        city_hist = history[history["City"] == city]
+        present_dates = set(city_df["Date"].dt.normalize())
+
+        for tdate in target_dates:
+            if tdate in present_dates:
+                continue  # API already has this day
+
+            # Seasonal reference: same ±seasonal_window day-of-year, prior years
+            doy = tdate.day_of_year
+            doy_low  = doy - seasonal_window
+            doy_high = doy + seasonal_window
+            if doy_low < 1:
+                doy_low += 365
+            if doy_high > 365:
+                doy_high -= 365
+
+            hist_doys = city_hist["Date"].dt.day_of_year
+            if doy_low <= doy_high:
+                mask = hist_doys.between(doy_low, doy_high)
+            else:  # wraps around year-end
+                mask = (hist_doys >= doy_low) | (hist_doys <= doy_high)
+
+            ref = city_hist[mask]
+            row = {"City": city, "Date": tdate}
+            for col in WEATHER_COLS:
+                if col in ref.columns and not ref[col].isna().all():
+                    row[col] = float(ref[col].mean())
+                elif col in city_df.columns:
+                    # Fall back to overall city mean if no seasonal data
+                    row[col] = float(city_df[col].mean())
+                else:
+                    row[col] = 0.0
+            new_rows.append(row)
+
+    if not new_rows:
+        return df_daily
+
+    extended = pd.concat(
+        [df_daily, pd.DataFrame(new_rows)],
+        ignore_index=True,
+        sort=False,
+    ).sort_values(["City", "Date"]).reset_index(drop=True)
+    return extended
+
+
 # ── Main ───────────────────────────────────────────────────────────────────
 def main() -> None:
     try:
@@ -414,21 +500,22 @@ def main() -> None:
     threshold_d = float(manifest.get("optimal_threshold", 0.44))
     threshold_h = float(manifest_h.get("optimal_threshold", 0.58))
 
-    # Fetch weather (past 60 days + next 16 days)
+    # Fetch weather (past 92 days for seasonal reference + next 16 days API forecast)
     print("Fetching weather from Open-Meteo...")
     all_hourly = []
     for city, (lat, lon) in CITIES.items():
         print(f"  {city}", end=" ... ", flush=True)
-        df_c = fetch_weather(city, lat, lon, past_days=60, forecast_days=16)
+        df_c = fetch_weather(city, lat, lon, past_days=92, forecast_days=16)
         all_hourly.append(df_c)
         print("ok")
         time.sleep(1)
 
     df_h_all = pd.concat(all_hourly, ignore_index=True)
 
-    # Daily path
-    print("Building daily features...")
+    # Daily path — extend API forecast (16 days) to 30 days with seasonal fill
+    print("Building daily features (extending to 30-day horizon)...")
     df_daily = aggregate_to_daily(df_h_all)
+    df_daily = extend_daily_to_30d(df_daily, today, target_days=30)
     df_daily_feat = build_daily_features(df_daily)
 
     X_d = df_daily_feat[feat_d].fillna(0).astype(float).values
@@ -540,7 +627,7 @@ def main() -> None:
         json.dumps(metrics, indent=2), encoding="utf-8"
     )
 
-    end_date = (today + timedelta(days=15)).strftime("%Y-%m-%d")
+    end_date = (today + timedelta(days=29)).strftime("%Y-%m-%d")
     print(f"Done — daily: {len(daily_records)} records ({today} → {end_date})")
     print(f"       hourly: {len(hourly_records)} records")
     print(f"       outputs → {docs_data}")
