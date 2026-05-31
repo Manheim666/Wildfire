@@ -1,0 +1,106 @@
+name: Deploy dashboard to GitHub Pages
+
+on:
+  # Deploy whenever new commits land on the default branch (covers both
+  # manual pushes and the automated forecast-data commits).
+  push:
+    branches:
+      - main
+      - master
+  # Also allow manual deployment from the Actions tab.
+  workflow_dispatch:
+
+# Only one Pages deployment at a time. Do not cancel in-progress
+# deployments so we don't leave Pages in a broken state.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy docs/ to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # Checkout the default branch. Using github.ref (not hardcoded "main")
+      # means this works on repositories where the default branch is "master"
+      # or any other name.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          lfs: false
+          fetch-depth: 1
+
+      # Guard: make sure docs/ contains real HTML, not Git LFS pointers.
+      # LFS pointers appear when a repo's LFS quota is exceeded and GitHub
+      # substitutes pointers instead of file contents. Deploying pointer files
+      # to Pages would produce a broken dashboard.
+      - name: Verify docs/ contains real files (not LFS pointers)
+        run: |
+          if [ ! -d docs ]; then
+            echo "ERROR: docs/ directory not found."
+            exit 1
+          fi
+          if [ ! -f docs/index.html ]; then
+            echo "ERROR: docs/index.html not found."
+            exit 1
+          fi
+          if grep -rq "version https://git-lfs.github.com/spec/v1" docs/; then
+            echo "ERROR: Git LFS pointer(s) detected inside docs/."
+            echo "The repository's LFS quota may be exceeded, or files were"
+            echo "accidentally committed as LFS objects."
+            echo ""
+            grep -rl "version https://git-lfs.github.com/spec/v1" docs/ || true
+            exit 1
+          fi
+          echo "docs/ looks good — no LFS pointers found."
+
+      # Verify the JSON data files used by the dashboard are present and valid.
+      - name: Validate dashboard data files
+        run: |
+          python - <<'EOF'
+          import json, sys, os
+          files = [
+              "docs/data/forecast_30_days.json",
+              "docs/data/hourly_forecast_168h.json",
+              "docs/data/metrics.json",
+          ]
+          warnings = []
+          for path in files:
+              if not os.path.exists(path):
+                  warnings.append(f"WARNING: {path} not found (dashboard will use cached data)")
+                  continue
+              try:
+                  with open(path) as fh:
+                      data = json.load(fh)
+                  n = len(data) if isinstance(data, list) else 1
+                  print(f"  OK  {path}  ({n} record(s))")
+              except json.JSONDecodeError as e:
+                  print(f"  ERROR: {path}: {e}", file=sys.stderr)
+                  sys.exit(1)
+          for w in warnings:
+              print(w)
+          EOF
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs/ as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

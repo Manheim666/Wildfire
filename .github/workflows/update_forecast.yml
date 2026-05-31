@@ -1,0 +1,192 @@
+name: Update wildfire forecast
+
+on:
+  schedule:
+    # 03:00 UTC = 07:00 Baku time, after Open-Meteo refreshes overnight data
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual trigger"
+        required: false
+        default: "Manual update"
+
+# Prevent concurrent scheduled runs. If a previous run is still in progress
+# when the next cron fires, cancel the in-progress run so the queue does not
+# grow unboundedly and so the latest weather data is always used.
+concurrency:
+  group: forecast-update
+  cancel-in-progress: true
+
+# Explicit permissions — required because the default GITHUB_TOKEN
+# has read-only contents on many repositories. Scheduled workflows
+# inherit the same token as push workflows but must have explicit
+# write access declared here to commit data files back to the repo.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-forecast:
+    name: Fetch weather & score risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      # fetch-depth: 1  — shallow clone is enough; we do not need history.
+      # persist-credentials: true — ensures `git push` works without a
+      # separate PAT.  Without this, scheduled runs sometimes fail to push
+      # because the token is not forwarded to the git remote.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+          lfs: false  # script only reads/writes JSON; skip LFS to avoid quota failures
+
+      # ── Python ──────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Cache pip downloads. The key includes the OS + hash of
+      # requirements.txt so the cache is invalidated automatically
+      # when dependencies change. A restore-key fallback means we
+      # get a partial cache hit even if requirements.txt changed.
+      - name: Cache pip downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Install only what update_forecast.py needs. The full
+      # requirements.txt (prophet, optuna, shap, etc.) takes 8+ minutes
+      # and is not used by the scoring-only script.
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "pandas>=2.0" \
+            "numpy>=1.24" \
+            "requests>=2.31" \
+            "catboost>=1.2"
+
+      # ── Pre-flight checks ────────────────────────────────────────────────
+      # Fail fast if model artifacts are missing rather than producing
+      # silently empty or corrupt output files.
+      - name: Verify model artifacts
+        run: |
+          missing=0
+          for f in \
+            models/wildfire/best_fire_model.json \
+            models/wildfire/best_fire_model_hourly.json \
+            models/wildfire/feature_columns.json \
+            models/wildfire/feature_columns_hourly.json \
+            models/wildfire/model_manifest.json \
+            models/wildfire/model_manifest_hourly.json; do
+            if [ ! -f "$f" ]; then
+              echo "MISSING: $f"
+              missing=$((missing + 1))
+            else
+              echo "OK: $f"
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $missing model artifact(s) missing. Cannot run forecast update."
+            exit 1
+          fi
+
+      # ── Forecast update ──────────────────────────────────────────────────
+      # Retry up to 3 times with exponential back-off.
+      # Scheduled runs fail most often because Open-Meteo returns a 5xx
+      # error during server maintenance windows. A single retry is almost
+      # always sufficient; the third attempt is a safety net.
+      - name: Run forecast update (with retry)
+        run: |
+          MAX_ATTEMPTS=3
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "=== Attempt $attempt / $MAX_ATTEMPTS ==="
+            if python scripts/update_forecast.py; then
+              echo "Forecast update succeeded."
+              exit 0
+            fi
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              WAIT=$(( attempt * 60 ))
+              echo "Attempt $attempt failed. Waiting ${WAIT}s before retry..."
+              sleep "$WAIT"
+            fi
+          done
+          echo "All $MAX_ATTEMPTS attempts failed."
+          exit 1
+
+      # ── Output validation ────────────────────────────────────────────────
+      - name: Validate output JSON files
+        run: |
+          python - <<'EOF'
+          import json, sys
+          files = [
+              "docs/data/forecast_30_days.json",
+              "docs/data/hourly_forecast_168h.json",
+              "docs/data/metrics.json",
+          ]
+          errors = []
+          for path in files:
+              try:
+                  with open(path) as fh:
+                      data = json.load(fh)
+                  n = len(data) if isinstance(data, list) else 1
+                  print(f"  OK  {path}  ({n} record(s))")
+              except FileNotFoundError:
+                  errors.append(f"MISSING: {path}")
+              except json.JSONDecodeError as e:
+                  errors.append(f"INVALID JSON: {path}: {e}")
+          if errors:
+              print("\nValidation errors:")
+              for e in errors:
+                  print(f"  {e}")
+              sys.exit(1)
+          EOF
+
+      # ── Commit & push ────────────────────────────────────────────────────
+      # Only commit when data files actually changed. git diff --cached
+      # is empty when the forecast produces identical output (e.g., the
+      # run was triggered twice within the same day), so we skip the push
+      # to avoid a redundant commit. The push uses --ff-only to reject
+      # pushes that are not fast-forwards; combined with fetch+rebase this
+      # handles the rare case where another process committed in the window
+      # between checkout and push.
+      - name: Commit updated forecast data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            docs/data/forecast_30_days.json \
+            docs/data/hourly_forecast_168h.json \
+            docs/data/metrics.json
+
+          if git diff --cached --quiet; then
+            echo "Forecast data unchanged — no commit needed."
+            exit 0
+          fi
+
+          DATE=$(date -u +"%Y-%m-%d")
+          git commit -m "chore: update wildfire forecast data [${DATE}]"
+
+          # Retry push with pull-rebase in case another job committed first.
+          # Use BRANCH_NAME (not 'HEAD') to avoid ambiguous ref resolution.
+          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          MAX_PUSH=3
+          for i in $(seq 1 $MAX_PUSH); do
+            git pull --rebase --ff-only origin "$BRANCH_NAME" && git push origin "$BRANCH_NAME" && exit 0
+            echo "Push attempt $i failed. Retrying in 10s..."
+            sleep 10
+          done
+          echo "Push failed after $MAX_PUSH attempts."
+          exit 1

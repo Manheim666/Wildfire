@@ -1,0 +1,50 @@
+# WildFire Prediction Pipeline — Dependencies
+# ─────────────────────────────────────────────────────
+# Core
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0
+joblib>=1.3
+tqdm>=4.65
+nbformat>=5.9
+nbclient>=0.9
+
+# NB01: Data Ingestion
+openmeteo-requests>=1.2
+requests-cache>=1.1
+retry-requests>=2.0
+requests>=2.31
+
+# NB02: EDA & Feature Engineering
+scipy>=1.12
+statsmodels>=0.14
+prophet>=1.1
+
+# NB03: Weather Time-Series Forecasting
+xgboost>=2.0
+
+# NB04: Wildfire Detection (multi-model + Optuna + SHAP)
+lightgbm>=4.0
+catboost>=1.2
+scikit-learn>=1.4
+imbalanced-learn>=0.12
+optuna>=3.5
+shap>=0.43
+
+# NB05: Risk Prediction & Interactive Dashboard
+folium>=0.15
+plotly>=5.18
+
+# NB06: Climate Report
+# (no additional deps)
+
+# Visualization (all notebooks)
+matplotlib>=3.8
+seaborn>=0.13
+
+# Optional: Neural network support (NB04 + prediction pipeline)
+# pytorch-tabnet>=4.1
+
+# Optional (GEE enrichment in NB01)
+earthengine-api>=0.1
+osmnx>=1.9

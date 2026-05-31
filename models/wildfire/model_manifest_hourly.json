@@ -1,0 +1,37 @@
+{
+  "model_name": "CatBoost_H_Optuna",
+  "optimal_threshold": 0.5799999999999997,
+  "n_features": 70,
+  "val_date": "2024-01-01",
+  "test_date": "2025-01-01",
+  "imbalance_ratio": 21.2,
+  "daytime_masking": true,
+  "train_shape": [
+    1675840,
+    70
+  ],
+  "val_shape": [
+    140544,
+    70
+  ],
+  "test_shape": [
+    188864,
+    70
+  ],
+  "metrics": {
+    "recall": 0.6494524807354333,
+    "precision": 0.2745770461819845,
+    "f1": 0.38597195998875183,
+    "accuracy": 0.9190687478820738,
+    "fn": 2593.0,
+    "fp": 12692.0,
+    "tp": 4804.0,
+    "tn": 168775.0,
+    "pr_auc": 0.3588584570057928,
+    "roc_auc": 0.926654998181983
+  },
+  "overfit_gap": 0.06995048116294361,
+  "total_models_compared": 4,
+  "recall_first": true,
+  "threshold_strategy": "recall-optimized with fallback cascade"
+}
