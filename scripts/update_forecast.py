@@ -25,6 +25,20 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
+def _safe_float(value, default: float = 0.0) -> float:
+    """Coerce to a finite float. NaN/Inf/None/unparsable all fall back to
+    `default` instead of leaking through to JSON — `float(x or 0)` does NOT
+    catch NaN because `nan` is truthy in Python, which is how NaN literals
+    ended up in the deployed forecast JSON (invalid per strict JSON, so
+    browsers' JSON.parse rejects the whole file)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return v if np.isfinite(v) else default
+
+
 # ── City definitions ───────────────────────────────────────────────────────
 CITIES = {
     "Baku":        (40.4093, 49.8671),
@@ -537,20 +551,20 @@ def main() -> None:
             "confidence":     round(confidence_score(p), 10),
             "risk_score":     round(p * 100, 1),
             "predicted_fire": int(p >= threshold_d),
-            "temperature":    round(float(row.get("Temperature_C_mean", 0) or 0), 1),
-            "temp_min":       round(float(row.get("Temperature_C_min", 0) or 0), 1),
-            "temp_max":       round(float(row.get("Temperature_C_max", 0) or 0), 1),
-            "wind":           round(float(row.get("Wind_Speed_kmh_mean", 0) or 0), 1),
-            "humidity":       round(float(row.get("Humidity_percent_mean", 0) or 0), 1),
-            "rain":           round(float(row.get("Rain_mm_sum", 0) or 0), 2),
-            "Temperature_C_mean":        round(float(row.get("Temperature_C_mean", 0) or 0), 4),
-            "Humidity_percent_mean":     round(float(row.get("Humidity_percent_mean", 0) or 0), 4),
-            "Rain_mm_sum":               round(float(row.get("Rain_mm_sum", 0) or 0), 4),
-            "Wind_Speed_kmh_mean":       round(float(row.get("Wind_Speed_kmh_mean", 0) or 0), 4),
-            "Pressure_hPa_mean":         round(float(row.get("Pressure_hPa_mean", 0) or 0), 4),
-            "Solar_Radiation_Wm2_mean":  round(float(row.get("Solar_Radiation_Wm2_mean", 0) or 0), 4),
-            "Soil_Temp_C_mean":          round(float(row.get("Soil_Temp_C_mean", 0) or 0), 4),
-            "Soil_Moisture_mean":        round(float(row.get("Soil_Moisture_mean", 0) or 0), 4),
+            "temperature":    round(_safe_float(row.get("Temperature_C_mean")), 1),
+            "temp_min":       round(_safe_float(row.get("Temperature_C_min")), 1),
+            "temp_max":       round(_safe_float(row.get("Temperature_C_max")), 1),
+            "wind":           round(_safe_float(row.get("Wind_Speed_kmh_mean")), 1),
+            "humidity":       round(_safe_float(row.get("Humidity_percent_mean")), 1),
+            "rain":           round(_safe_float(row.get("Rain_mm_sum")), 2),
+            "Temperature_C_mean":        round(_safe_float(row.get("Temperature_C_mean")), 4),
+            "Humidity_percent_mean":     round(_safe_float(row.get("Humidity_percent_mean")), 4),
+            "Rain_mm_sum":               round(_safe_float(row.get("Rain_mm_sum")), 4),
+            "Wind_Speed_kmh_mean":       round(_safe_float(row.get("Wind_Speed_kmh_mean")), 4),
+            "Pressure_hPa_mean":         round(_safe_float(row.get("Pressure_hPa_mean")), 4),
+            "Solar_Radiation_Wm2_mean":  round(_safe_float(row.get("Solar_Radiation_Wm2_mean")), 4),
+            "Soil_Temp_C_mean":          round(_safe_float(row.get("Soil_Temp_C_mean")), 4),
+            "Soil_Moisture_mean":        round(_safe_float(row.get("Soil_Moisture_mean")), 4),
             "Latitude":       CITIES[row["City"]][0],
             "Longitude":      CITIES[row["City"]][1],
         })
@@ -592,10 +606,10 @@ def main() -> None:
             "predicted_fire": int(p >= threshold_h),
             "confidence":     round(confidence_score(p), 10),
             "risk_color":     RISK_COLORS[risk_level(p)],
-            "temperature":    round(float(row.get("Temperature_C", 0) or 0), 1),
-            "humidity":       round(float(row.get("Humidity_percent", 0) or 0), 1),
-            "wind":           round(float(row.get("Wind_Speed_kmh", 0) or 0), 1),
-            "solar":          round(float(row.get("Solar_Radiation_Wm2", 0) or 0), 1),
+            "temperature":    round(_safe_float(row.get("Temperature_C")), 1),
+            "humidity":       round(_safe_float(row.get("Humidity_percent")), 1),
+            "wind":           round(_safe_float(row.get("Wind_Speed_kmh")), 1),
+            "solar":          round(_safe_float(row.get("Solar_Radiation_Wm2")), 1),
             "Latitude":       CITIES[row["City"]][0],
             "Longitude":      CITIES[row["City"]][1],
         })
@@ -616,15 +630,20 @@ def main() -> None:
         },
     }
 
-    # Write outputs
+    # Write outputs.
+    # allow_nan=False is deliberate: Python's json module allows NaN/Infinity
+    # as a non-standard extension, but browsers' JSON.parse does not, so a
+    # silently-written NaN breaks the live dashboard. With allow_nan=False,
+    # any value that still isn't finite raises here — loud and in CI —
+    # instead of shipping invalid JSON to production.
     (docs_data / "forecast_30_days.json").write_text(
-        json.dumps(daily_records, separators=(",", ":")), encoding="utf-8"
+        json.dumps(daily_records, separators=(",", ":"), allow_nan=False), encoding="utf-8"
     )
     (docs_data / "hourly_forecast_168h.json").write_text(
-        json.dumps(hourly_records, separators=(",", ":")), encoding="utf-8"
+        json.dumps(hourly_records, separators=(",", ":"), allow_nan=False), encoding="utf-8"
     )
     (docs_data / "metrics.json").write_text(
-        json.dumps(metrics, indent=2), encoding="utf-8"
+        json.dumps(metrics, indent=2, allow_nan=False), encoding="utf-8"
     )
 
     end_date = (today + timedelta(days=29)).strftime("%Y-%m-%d")
