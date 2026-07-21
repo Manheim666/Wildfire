@@ -126,10 +126,23 @@ jobs:
           exit 1
 
       # ── Output validation ────────────────────────────────────────────────
+      # Uses parse_constant to reject NaN/Infinity/-Infinity. Python's json
+      # module accepts these as a non-standard extension by default, so a
+      # plain json.load() here would pass files that browsers' strict
+      # JSON.parse rejects outright — which is exactly how a broken file
+      # reached the live dashboard before. This step must be at least as
+      # strict as the browser that ultimately consumes these files.
       - name: Validate output JSON files
         run: |
           python - <<'EOF'
           import json, sys
+
+          def _reject_nonfinite(token):
+              raise ValueError(
+                  f"non-finite constant '{token}' — not valid strict JSON, "
+                  "will break browsers' JSON.parse"
+              )
+
           files = [
               "docs/data/forecast_30_days.json",
               "docs/data/hourly_forecast_168h.json",
@@ -139,12 +152,12 @@ jobs:
           for path in files:
               try:
                   with open(path) as fh:
-                      data = json.load(fh)
+                      data = json.load(fh, parse_constant=_reject_nonfinite)
                   n = len(data) if isinstance(data, list) else 1
                   print(f"  OK  {path}  ({n} record(s))")
               except FileNotFoundError:
                   errors.append(f"MISSING: {path}")
-              except json.JSONDecodeError as e:
+              except (json.JSONDecodeError, ValueError) as e:
                   errors.append(f"INVALID JSON: {path}: {e}")
           if errors:
               print("\nValidation errors:")
@@ -157,34 +170,58 @@ jobs:
       # Only commit when data files actually changed. git diff --cached
       # is empty when the forecast produces identical output (e.g., the
       # run was triggered twice within the same day), so we skip the push
-      # to avoid a redundant commit. The push uses --ff-only to reject
-      # pushes that are not fast-forwards; combined with fetch+rebase this
-      # handles the rare case where another process committed in the window
-      # between checkout and push.
+      # to avoid a redundant commit.
+      #
+      # These 3 files are fully machine-generated on every run and carry no
+      # meaningful merge semantics — if another run's commit landed first,
+      # our freshly computed values should simply win. They're also written
+      # as a single minified line, so git's line-based diff can never do a
+      # partial merge on them: any two updates to the same file conflict
+      # outright. `git pull --rebase` therefore used to fail on retry too,
+      # since a failed rebase leaves the tree mid-conflict and the next
+      # attempt just hits "unmerged files" again without ever re-trying.
+      #
+      # Fix: don't merge at all. On every attempt, fetch the latest tip,
+      # hard-reset to it, re-copy our already-computed output back in, and
+      # recommit — last successful push wins, with no conflict possible.
       - name: Commit updated forecast data
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add \
-            docs/data/forecast_30_days.json \
-            docs/data/hourly_forecast_168h.json \
-            docs/data/metrics.json
+          DATA_FILES="docs/data/forecast_30_days.json docs/data/hourly_forecast_168h.json docs/data/metrics.json"
 
+          git add $DATA_FILES
           if git diff --cached --quiet; then
             echo "Forecast data unchanged — no commit needed."
             exit 0
           fi
 
-          DATE=$(date -u +"%Y-%m-%d")
-          git commit -m "chore: update wildfire forecast data [${DATE}]"
+          # Preserve the freshly generated files outside the working tree so
+          # they survive a `git reset --hard` on later retry attempts.
+          STASH_DIR=$(mktemp -d)
+          cp docs/data/forecast_30_days.json docs/data/hourly_forecast_168h.json docs/data/metrics.json "$STASH_DIR/"
 
-          # Retry push with pull-rebase in case another job committed first.
-          # Use BRANCH_NAME (not 'HEAD') to avoid ambiguous ref resolution.
+          DATE=$(date -u +"%Y-%m-%d")
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
           MAX_PUSH=3
           for i in $(seq 1 $MAX_PUSH); do
-            git pull --rebase origin "$BRANCH_NAME" && git push origin "$BRANCH_NAME" && exit 0
+            git fetch origin "$BRANCH_NAME"
+            git reset --hard "origin/$BRANCH_NAME"
+            cp "$STASH_DIR/forecast_30_days.json" docs/data/forecast_30_days.json
+            cp "$STASH_DIR/hourly_forecast_168h.json" docs/data/hourly_forecast_168h.json
+            cp "$STASH_DIR/metrics.json" docs/data/metrics.json
+            git add $DATA_FILES
+
+            if git diff --cached --quiet; then
+              echo "Remote already has this data (another run won the race) — nothing to push."
+              exit 0
+            fi
+
+            git commit -m "chore: update wildfire forecast data [${DATE}]"
+            if git push origin "$BRANCH_NAME"; then
+              exit 0
+            fi
             echo "Push attempt $i failed. Retrying in 10s..."
             sleep 10
           done
