@@ -22,10 +22,17 @@ concurrency:
 # has read-only contents on many repositories. Scheduled workflows
 # inherit the same token as push workflows but must have explicit
 # write access declared here to commit data files back to the repo.
+#
+# actions: write is required for the final step, which explicitly
+# dispatches pages.yml (see that step for why this is necessary —
+# GitHub does not let a GITHUB_TOKEN-authored push trigger another
+# workflow's `on: push`, so pages.yml would otherwise never redeploy
+# after this job's own commits).
 permissions:
   contents: write
   pages: write
   id-token: write
+  actions: write
 
 jobs:
   update-forecast:
@@ -185,11 +192,14 @@ jobs:
       # hard-reset to it, re-copy our already-computed output back in, and
       # recommit — last successful push wins, with no conflict possible.
       - name: Commit updated forecast data
+        id: commit
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           DATA_FILES="docs/data/forecast_30_days.json docs/data/hourly_forecast_168h.json docs/data/metrics.json"
+
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
 
           git add $DATA_FILES
           if git diff --cached --quiet; then
@@ -220,6 +230,7 @@ jobs:
 
             git commit -m "chore: update wildfire forecast data [${DATE}]"
             if git push origin "$BRANCH_NAME"; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo "Push attempt $i failed. Retrying in 10s..."
@@ -227,3 +238,19 @@ jobs:
           done
           echo "Push failed after $MAX_PUSH attempts."
           exit 1
+
+      # ── Trigger Pages redeploy ──────────────────────────────────────────
+      # GitHub deliberately does not let a GITHUB_TOKEN-authored push trigger
+      # another workflow's `on: push` (anti-recursion safeguard). Without this
+      # explicit dispatch, pages.yml never redeploys after this job's own
+      # commits, and the live site silently keeps serving whatever was last
+      # deployed by an actual human push — which is exactly what happened
+      # here: Pages hadn't redeployed in ~2 months despite dozens of
+      # successful daily data commits in between.
+      - name: Trigger Pages redeploy
+        if: steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}"
+          echo "Dispatched pages.yml redeploy for ${{ github.repository }}@${{ github.ref_name }}"

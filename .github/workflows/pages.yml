@@ -67,10 +67,21 @@ jobs:
           echo "docs/ looks good — no LFS pointers found."
 
       # Verify the JSON data files used by the dashboard are present and valid.
+      # parse_constant rejects NaN/Infinity explicitly: Python's json module
+      # accepts those as a non-standard extension by default, but browsers'
+      # JSON.parse does not, so a plain json.load() here would let a broken
+      # file (one the dashboard itself can't load) pass this gate silently.
       - name: Validate dashboard data files
         run: |
           python - <<'EOF'
           import json, sys, os
+
+          def _reject_nonfinite(token):
+              raise ValueError(
+                  f"non-finite constant '{token}' — not valid strict JSON, "
+                  "will break browsers' JSON.parse"
+              )
+
           files = [
               "docs/data/forecast_30_days.json",
               "docs/data/hourly_forecast_168h.json",
@@ -83,10 +94,10 @@ jobs:
                   continue
               try:
                   with open(path) as fh:
-                      data = json.load(fh)
+                      data = json.load(fh, parse_constant=_reject_nonfinite)
                   n = len(data) if isinstance(data, list) else 1
                   print(f"  OK  {path}  ({n} record(s))")
-              except json.JSONDecodeError as e:
+              except (json.JSONDecodeError, ValueError) as e:
                   print(f"  ERROR: {path}: {e}", file=sys.stderr)
                   sys.exit(1)
           for w in warnings:
