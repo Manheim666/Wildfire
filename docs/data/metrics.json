@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-07T07:48:17.532621+00:00Z",
+  "generated_at": "2026-09-08T07:40:50.311454+00:00Z",
   "prediction_horizon_days": 30,
   "target": "Daily probability of a NASA FIRMS wildfire detection within the city risk area",
   "selected_model": "CatBoost_Optuna",
