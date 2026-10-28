@@ -127,8 +127,13 @@ function initControls() {
 /* ─── MAP ─────────────────────────────────────────────── */
 function initMap() {
   map = L.map("map", { zoomControl: true, scrollWheelZoom: true }).setView([40.35, 47.8], 7);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 18, attribution: "CartoDB"
+  // CARTO basemaps now require an API key; Esri Light Gray needs none.
+  const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
+  L.tileLayer(esri + "World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 16, attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors"
+  }).addTo(map);
+  L.tileLayer(esri + "World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 16
   }).addTo(map);
 }
 
