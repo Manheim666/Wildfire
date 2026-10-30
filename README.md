@@ -43,36 +43,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 2. Team & Task Allocation
-
-| Team Member | Role | Assigned Tasks |
-|---|---|---|
-| **Asif Habilov** | Data Ingestion / ML Engineering / Architecture | T1 — Data ingestion pipeline (NB1); T5 — Multi-model fire classifier & calibration (NB4); T8 — ML optimization & `src/` module design |
-| **Raul Ibrahimov** | Data Ingestion / Presentation Design | T2 — Fire label normalization & static geography (NB1); T10 — Presentation design & delivery; T11 — Documentation & README |
-| **Ilaha Shafizada** | Data Analysis / Feature Engineering | T3 — Exploratory data analysis (NB2 §1–§5); T6 — FWI & lag feature engineering (NB2 §7); T9 — Outlier detection & data quality |
-| **Nurana Aliyarli** | Data Analysis / Feature Engineering | T4 — Fire-weather relationship analysis (NB2 §6); T7 — Calendar & rolling feature engineering (NB2 §7); T9 — Outlier detection & data quality |
-| **Aysu Mammadova** | Data Analysis / ML Engineering | T5 — Weather forecasting ensemble (NB3); T8 — Risk prediction & hypothesis testing (NB5–NB6); T12 — Geospatial visualization |
-
-### Task Breakdown
-
-| ID | Task | Description | Owner(s) | Notebook |
-|----|------|-------------|----------|----------|
-| T1 | Weather Data Ingestion | Historical hourly weather (Open-Meteo Archive), live 16-day forecast, HTTP caching & retry logic | Asif, Raul | NB1 |
-| T2 | Fire Labels & Geography | NASA FIRMS archive parsing, daily fire-label normalization (20 km buffer), Open-Elevation terrain fetch | Raul | NB1 |
-| T3 | Exploratory Data Analysis | Per-city quality audit, descriptive statistics, distribution analysis, correlation heatmaps, seasonal decomposition | Ilaha | NB2 |
-| T4 | Fire-Weather Analysis | Fire-day vs. non-fire-day comparison per city, Welch's t-test for significance, feature–fire correlation ranking | Nurana | NB2 |
-| T5 | Weather Forecasting Ensemble | Prophet + XGBoost stacking per city per feature, multi-model comparison, 30-day predictions | Aysu | NB3 |
-| T6 | FWI Feature Engineering | FFMC, DMC, DC, ISI, BUI, FWI index computation; VPD, dew point, heat index; dry-spell tracking | Ilaha | NB2 |
-| T7 | Temporal Feature Engineering | Lag features (1–30 day), rolling statistics (3/7/14/30 day), cyclical calendar encodings, seasonal flags | Nurana | NB2 |
-| T8 | Wildfire Detection & Evaluation | 8 classifiers + Optuna tuning + SHAP, isotonic calibration, PR-AUC evaluation, threshold selection | Asif, Aysu | NB4 |
-| T9 | Data Quality & Outlier Detection | IQR-based outlier analysis per city, missing-value audit, data integrity validation | Ilaha, Nurana | NB2 |
-| T10 | Presentation Design & Delivery | Slide deck creation, narrative structure, visual design, rehearsal, final presentation | Raul | — |
-| T11 | Documentation & `src/` Module | README, code comments, shared module documentation, reproducibility guide | Raul, Asif | — |
-| T12 | Geospatial Visualization | Folium risk maps, Plotly animated dashboards, city-level timelines, climate report figures | Aysu | NB5, NB6 |
-
----
-
-## 3. 10-Day Project Timeline
+## 2. 10-Day Project Timeline
 
 | Day | Phase | Milestones | Team Focus |
 |-----|-------|-----------|------------|
@@ -89,7 +60,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 4. Pipeline Architecture
+## 3. Pipeline Architecture
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -145,7 +116,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 5. Notebook Descriptions
+## 4. Notebook Descriptions
 
 ### NB1 — Data Ingestion (`01_Data_Ingestion.ipynb`)
 
@@ -234,7 +205,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 6. Shared `src/` Module
+## 5. Shared `src/` Module
 
 All reusable logic is factored into a thin Python package that every notebook imports. This keeps notebook cells focused on analysis narrative, avoids code duplication, and makes functions independently testable.
 
@@ -257,7 +228,7 @@ from src.visualization import plot_confusion_matrix, plot_pr_curves, plot_featur
 
 ---
 
-## 7. Folder Structure
+## 6. Folder Structure
 
 ```
 Wildfire/
@@ -357,7 +328,7 @@ Wildfire/
 
 ---
 
-## 8. Key Definitions & Glossary
+## 7. Key Definitions & Glossary
 
 | Term | Full Name | Description |
 |------|-----------|-------------|
@@ -382,7 +353,7 @@ Wildfire/
 
 ---
 
-## 9. Setup & Execution
+## 8. Setup & Execution
 
 ### Google Colab
 
@@ -461,7 +432,7 @@ git lfs pull
 
 ---
 
-## 10. Dependencies
+## 9. Dependencies
 
 See `requirements.txt` for pinned versions. Summary by notebook:
 
@@ -479,7 +450,7 @@ Each notebook also installs missing packages automatically in its first code cel
 
 ---
 
-## 11. Cities Covered
+## 10. Cities Covered
 
 | City | Latitude | Longitude | Key Characteristics |
 |---|---:|---:|---|
@@ -504,7 +475,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 12. Data Sources & Provenance
+## 11. Data Sources & Provenance
 
 | Source | Data | Access | Notes |
 |--------|------|--------|-------|
@@ -524,7 +495,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 13. Key Outputs & Deliverables
+## 12. Key Outputs & Deliverables
 
 ### Data Artefacts
 
@@ -572,7 +543,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 14. Evaluation Protocol & Model Targets
+## 13. Evaluation Protocol & Model Targets
 
 ### Wildfire Detection (NB4)
 
@@ -597,7 +568,7 @@ Evaluated on a temporal holdout (last 30 days for daily, last 168 hours for hour
 
 ---
 
-## 15. GitHub Actions & Automated Updates
+## 14. GitHub Actions & Automated Updates
 
 The repository includes two GitHub Actions workflows:
 
