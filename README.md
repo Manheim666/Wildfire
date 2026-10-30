@@ -43,24 +43,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 2. 10-Day Project Timeline
-
-| Day | Phase | Milestones | Team Focus |
-|-----|-------|-----------|------------|
-| **1** | Data Collection | Open-Meteo API integration, FIRMS archive loading, legacy CSV fallback | Asif, Raul |
-| **2** | Data Collection | Static geography fetch, fire-label normalization, `master_daily.parquet` finalized | Asif, Raul |
-| **3** | EDA & Feature Engineering | Per-city quality audit, descriptive statistics, distribution analysis | Ilaha, Nurana |
-| **4** | EDA & Feature Engineering | Correlation analysis, seasonal decomposition, fire-weather t-tests | Ilaha, Nurana, Aysu |
-| **5** | Feature Engineering | FWI indices, VPD/dew point, lag/rolling features, calendar encodings → `engineered_daily.parquet` | Ilaha, Nurana |
-| **6** | ML — Weather Forecasting | Prophet + XGBoost + multi-model ensemble per city → `weather_forecast_30d.parquet` | Asif, Aysu |
-| **7** | ML — Wildfire Detection | 8-model comparison, Optuna tuning, SHAP, isotonic calibration | Asif, Aysu |
-| **8** | Risk Prediction & Visualization | 30-day risk scoring, Folium/Plotly maps, climate trend analysis | Asif, Aysu |
-| **9** | Integration & Presentation Prep | End-to-end pipeline validation, `src/` module cleanup, slide deck | All team |
-| **10** | **Presentation** | Final rehearsal and delivery | All team |
-
----
-
-## 3. Pipeline Architecture
+## 2. Pipeline Architecture
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -116,7 +99,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 4. Notebook Descriptions
+## 3. Notebook Descriptions
 
 ### NB1 — Data Ingestion (`01_Data_Ingestion.ipynb`)
 
@@ -205,7 +188,7 @@ All reusable functions are factored into a shared **`src/` Python module** (conf
 
 ---
 
-## 5. Shared `src/` Module
+## 4. Shared `src/` Module
 
 All reusable logic is factored into a thin Python package that every notebook imports. This keeps notebook cells focused on analysis narrative, avoids code duplication, and makes functions independently testable.
 
@@ -228,7 +211,7 @@ from src.visualization import plot_confusion_matrix, plot_pr_curves, plot_featur
 
 ---
 
-## 6. Folder Structure
+## 5. Folder Structure
 
 ```
 Wildfire/
@@ -328,7 +311,7 @@ Wildfire/
 
 ---
 
-## 7. Key Definitions & Glossary
+## 6. Key Definitions & Glossary
 
 | Term | Full Name | Description |
 |------|-----------|-------------|
@@ -353,7 +336,7 @@ Wildfire/
 
 ---
 
-## 8. Setup & Execution
+## 7. Setup & Execution
 
 ### Google Colab
 
@@ -432,7 +415,7 @@ git lfs pull
 
 ---
 
-## 9. Dependencies
+## 8. Dependencies
 
 See `requirements.txt` for pinned versions. Summary by notebook:
 
@@ -450,7 +433,7 @@ Each notebook also installs missing packages automatically in its first code cel
 
 ---
 
-## 10. Cities Covered
+## 9. Cities Covered
 
 | City | Latitude | Longitude | Key Characteristics |
 |---|---:|---:|---|
@@ -475,7 +458,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 11. Data Sources & Provenance
+## 10. Data Sources & Provenance
 
 | Source | Data | Access | Notes |
 |--------|------|--------|-------|
@@ -495,7 +478,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 12. Key Outputs & Deliverables
+## 11. Key Outputs & Deliverables
 
 ### Data Artefacts
 
@@ -543,7 +526,7 @@ Fire labels are aggregated daily within a **20 km radius** of each city centroid
 
 ---
 
-## 13. Evaluation Protocol & Model Targets
+## 12. Evaluation Protocol & Model Targets
 
 ### Wildfire Detection (NB4)
 
@@ -568,7 +551,7 @@ Evaluated on a temporal holdout (last 30 days for daily, last 168 hours for hour
 
 ---
 
-## 14. GitHub Actions & Automated Updates
+## 13. GitHub Actions & Automated Updates
 
 The repository includes two GitHub Actions workflows:
 
